@@ -411,7 +411,8 @@ public final class JdbcRepository extends AbstractRepository {
                 preparedStatement.setString(3, jobExecution.getBatchStatus().name());
                 preparedStatement.setString(4, jobExecution.getExitStatus());
                 preparedStatement.setString(5, jobExecution.getRestartPosition());
-                preparedStatement.setLong(6, jobExecution.getExecutionId());  //where clause
+                preparedStatement.setString(6, BatchUtil.propertiesToString(jobExecution.getJobParameters()));
+                preparedStatement.setLong(7, jobExecution.getExecutionId());  //where clause
             } else {
                 preparedStatement.setTimestamp(1, new Timestamp(jobExecution.getLastUpdatedTime().getTime()));
                 preparedStatement.setString(2, jobExecution.getBatchStatus().name());
@@ -488,21 +489,18 @@ public final class JdbcRepository extends AbstractRepository {
             }
             rs = preparedStatement.executeQuery();
             while (rs.next()) {
-                final long i = rs.getLong(TableColumns.JOBEXECUTIONID);
-                JobExecution jobExecution1 = jobExecutions.get(i);
-                if (jobExecution1 == null) {
-                    if (jobInstanceId == 0) {
-                        jobInstanceId = rs.getLong(TableColumns.JOBINSTANCEID);
-                    }
+                final long jobExecutionId = rs.getLong(TableColumns.JOBEXECUTIONID);
+                JobExecution jobExecution1 = jobExecutions.get(jobExecutionId);
+                if (jobExecution1 == null) { // cache miss
                     final Properties jobParameters1 = BatchUtil.stringToProperties(rs.getString(TableColumns.JOBPARAMETERS));
                     jobExecution1 =
-                            new JobExecutionImpl((JobInstanceImpl) getJobInstance(jobInstanceId), i, jobParameters1,
+                            new JobExecutionImpl((JobInstanceImpl) getJobInstance(rs.getLong(TableColumns.JOBINSTANCEID)), jobExecutionId, jobParameters1,
                                     rs.getTimestamp(TableColumns.CREATETIME), rs.getTimestamp(TableColumns.STARTTIME),
                                     rs.getTimestamp(TableColumns.ENDTIME), rs.getTimestamp(TableColumns.LASTUPDATEDTIME),
                                     rs.getString(TableColumns.BATCHSTATUS), rs.getString(TableColumns.EXITSTATUS),
                                     rs.getString(TableColumns.RESTARTPOSITION));
 
-                    jobExecutions.put(i, jobExecution1);
+                    jobExecutions.put(jobExecutionId, jobExecution1);
                 }
                 // jobExecution1 is either got from the cache, or created, now add it to the result list
                 result.add(jobExecution1);
